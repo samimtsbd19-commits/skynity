@@ -1,0 +1,47 @@
+# ─── Laravel ─────────────────────────────────────────
+/vendor/
+/node_modules/
+/public/hot
+/public/storage
+/storage/*.key
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# ─── Database ────────────────────────────────────────
+/database/database.sqlite
+/database/*.sqlite
+
+# ─── Build / Cache ───────────────────────────────────
+/bootstrap/cache/*.php
+/bootstrap/ssr/
+
+# ─── Logs ────────────────────────────────────────────
+/storage/logs/*.log
+/storage/framework/cache/
+/storage/framework/sessions/
+/storage/framework/views/
+/storage/app/public/
+
+# ─── IDE / OS ────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Docker local ────────────────────────────────────
+docker-compose.override.yml
+.env.production
+
+# ─── Composer generated ──────────────────────────────
+# composer.lock is intentionally excluded for fresh install
+# composer.lock
+
+# ─── Executables / Tools ─────────────────────────────
+*.exe
+*.dll
+claude*
