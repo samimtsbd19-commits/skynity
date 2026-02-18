@@ -125,7 +125,6 @@ class StockUserManager extends Component
                 if ($api->connect()) {
                     // Remove user by name
                     $users = $api->command('/ip/hotspot/user/print', ['?name=' . $user->username]);
-                    $filtered = [];
                     foreach ($users as $item) {
                         if (is_array($item) && isset($item['.id'])) {
                             $api->command('/ip/hotspot/user/remove', ['=.id=' . $item['.id']]);

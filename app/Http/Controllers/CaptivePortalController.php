@@ -181,7 +181,7 @@ class CaptivePortalController extends Controller
             'customer_phone' => $validated['customer_phone'],
             'mac_address' => $validated['mac_address'] ?? null,
             'ip_address' => $validated['ip_address'] ?? $request->ip(),
-            'payment_method' => 'trial',
+            'payment_method' => 'other',
             'amount' => 0,
             'status' => 'pending',
             'is_trial' => true,

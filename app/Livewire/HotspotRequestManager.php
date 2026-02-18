@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Models\HotspotRequest;
 use App\Models\Notification;
+use App\Models\Sale;
 use App\Models\StockUser;
 use App\Models\User;
 use App\Models\Voucher;
@@ -55,7 +56,7 @@ class HotspotRequestManager extends Component
         if (!$this->selectedRequest) return;
 
         $request = $this->selectedRequest;
-        $package = $request->package;
+        $package = $request->package; // null for trial/custom requests
         $router = $request->router;
 
         try {
@@ -66,8 +67,8 @@ class HotspotRequestManager extends Component
 
             // প্রথমে স্টক ইউজার থেকে অ্যাসাইন করার চেষ্টা করি
             if ($this->useStockUser) {
-                $stockUser = StockUser::assignToRequest($router->id, $request->id, $package->id);
-                
+                $stockUser = StockUser::assignToRequest($router->id, $request->id, $package?->id);
+
                 if ($stockUser) {
                     $username = $stockUser->username;
                     $password = $stockUser->password;
@@ -77,10 +78,8 @@ class HotspotRequestManager extends Component
                     $api = $router->getApi();
                     if ($api->connect()) {
                         try {
-                            // ইউজার Enable করি
                             $api->enableHotspotUser($username);
-                            
-                            // MAC Binding আপডেট করি
+
                             if ($request->mac_address) {
                                 $api->updateHotspotUserMac($username, $request->mac_address);
                             }
@@ -102,7 +101,7 @@ class HotspotRequestManager extends Component
                     $api->addHotspotUser(
                         $username,
                         $password,
-                        $package->mikrotik_profile,
+                        $package ? $package->mikrotik_profile : 'default',
                         $request->mac_address
                     );
                     if ($request->mac_address) {
@@ -122,24 +121,25 @@ class HotspotRequestManager extends Component
                 'hotspot_username' => $username,
                 'hotspot_password' => $password,
                 'router_id' => $router->id,
-                'package_id' => $package->id,
+                'package_id' => $package?->id,
                 'subscription_expires_at' => null,
                 'mac_address' => $request->mac_address,
                 'is_active' => true,
             ]);
 
-            // Create voucher record
-            $voucher = Voucher::create([
-                'router_id' => $router->id,
-                'package_id' => $package->id,
-                'username' => $username,
-                'password' => $password,
-                'status' => 'used',
-                'used_at' => now(),
-                'expires_at' => null,
-                'created_by' => auth()->id(),
-                'from_stock' => $createdFromStock,
-            ]);
+            // Create voucher record (only when a preset package exists)
+            $voucher = null;
+            if ($package) {
+                $voucher = Voucher::create([
+                    'router_id' => $router->id,
+                    'package_id' => $package->id,
+                    'username' => $username,
+                    'password' => $password,
+                    'status' => 'used',
+                    'expires_at' => null,
+                    'created_by' => auth()->id(),
+                ]);
+            }
 
             // Update hotspot request
             $request->update([
@@ -148,34 +148,36 @@ class HotspotRequestManager extends Component
                 'approved_at' => now(),
                 'user_id' => $user->id,
                 'voucher_code' => $username,
-                'from_stock_user' => $createdFromStock,
             ]);
 
             // Send notification to customer
+            $packageName = $package ? $package->name : 'কাস্টম/ট্রায়াল';
             Notification::sendToUser(
                 $user->id,
                 'approval',
                 'আপনার ইন্টারনেট অ্যাক্টিভ হয়েছে!',
-                "ইউজারনেম: {$username}\nপাসওয়ার্ড: {$password}\nপ্যাকেজ: {$package->name}\nমেয়াদ: প্রথম কানেক্টের পর শুরু হবে",
+                "ইউজারনেম: {$username}\nপাসওয়ার্ড: {$password}\nপ্যাকেজ: {$packageName}\nমেয়াদ: প্রথম কানেক্টের পর শুরু হবে",
                 [
                     'username' => $username,
                     'password' => $password,
-                    'package' => $package->name,
+                    'package' => $packageName,
                     'expires_at' => null,
                 ]
             );
 
-            // Create sale record
-            $request->package->sales()->create([
-                'voucher_id' => $voucher->id,
-                'sold_by' => auth()->id(),
-                'amount' => $request->amount,
-                'payment_method' => $request->payment_method,
-            ]);
+            // Create sale record (only when a voucher was created and payment was made)
+            if ($voucher && $request->amount > 0) {
+                Sale::create([
+                    'voucher_id' => $voucher->id,
+                    'sold_by' => auth()->id(),
+                    'amount' => $request->amount,
+                    'payment_method' => $request->payment_method,
+                ]);
+            }
 
             $this->showApproveModal = false;
             $this->selectedRequest = null;
-            
+
             $stockMsg = $createdFromStock ? ' (স্টক থেকে)' : ' (নতুন তৈরি)';
             session()->flash('success', 'রিকোয়েস্ট অনুমোদন করা হয়েছে। ইউজার: ' . $username . $stockMsg);
 
